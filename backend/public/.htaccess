@@ -1,0 +1,21 @@
+# LeakGuard API — route all /api/* requests to the front controller.
+# Works both when this directory is the docroot and when it is a subdirectory
+# (e.g. http://localhost/waterleak/backend/public/api/report).
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^api(/.*)?$ index.php [L,QSA]
+    # SPA fallback: when the built frontend (npm run build → dist/*) is copied
+    # into this directory, client routes fall back to index.html.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} !^(.*/)?api(/|$) [NC]
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# Never serve dotfiles or SQL dumps.
+<FilesMatch "^\.|\.(sql|env|md|log)$">
+    Require all denied
+</FilesMatch>

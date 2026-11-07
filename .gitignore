@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+
+# Environment & secrets
+.env
+!.env.example
+
+# Local data / scratch
+*.log
+shots/
+qa*.mjs
+.taste-skill/
+
+# OS / editor
+Thumbs.db
+.DS_Store

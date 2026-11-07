@@ -1,0 +1,238 @@
+import { useMemo, useState } from 'react'
+import { Download, Printer } from 'lucide-react'
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts'
+import { api } from '../api/client'
+import { usePoll } from '../hooks/usePoll'
+import { PageHeader, EmptyState, ErrorState, Skeleton } from '../components/States'
+import { fmtDateShort, fmtL, fmtLpm, fmtInt, todayPH, daysAgoPH } from '../utils/format'
+
+const PRESETS = [
+  { label: 'Last 7 days', days: 6 },
+  { label: 'Last 14 days', days: 13 },
+  { label: 'Last 30 days', days: 29 },
+]
+
+export default function Reports() {
+  const [from, setFrom] = useState(daysAgoPH(6))
+  const [to, setTo] = useState(todayPH())
+
+  const qs = `from=${from}&to=${to}`
+  const { data, error, loading, refresh } = usePoll(() => api.get(`/admin/reports/daily?${qs}`), 30000, [qs])
+
+  // Previous equal-length period for the comparison strip.
+  const spanDays = useMemo(() => Math.round((new Date(to) - new Date(from)) / 86400000) + 1, [from, to])
+  const prevRange = useMemo(() => {
+    const pTo = new Date(new Date(from).getTime() - 86400000).toISOString().slice(0, 10)
+    const pFrom = new Date(new Date(from).getTime() - spanDays * 86400000).toISOString().slice(0, 10)
+    return `from=${pFrom}&to=${pTo}`
+  }, [from, spanDays])
+  const { data: prev } = usePoll(() => api.get(`/admin/reports/daily?${prevRange}`), 60000, [prevRange])
+
+  const rows = data?.rows ?? []
+  const chartData = rows.map((r) => ({
+    date: fmtDateShort(r.report_date),
+    z1: Number(r.z1_daily_l),
+    z2: Number(r.z2_daily_l),
+    p1: Number(r.z1_peak_lpm),
+    p2: Number(r.z2_peak_lpm),
+    trips: Number(r.trips),
+  }))
+
+  const sum = (rs, k) => rs.reduce((a, r) => a + Number(r[`z${k}_daily_l`]), 0)
+  const trips = (rs) => rs.reduce((a, r) => a + Number(r.trips), 0)
+  const prevRows = prev?.rows ?? []
+
+  const cmp = (cur, old) => {
+    if (!prev) return { text: '—', tone: 'text-slate-400' }
+    if (!old) return { text: 'no prior data', tone: 'text-slate-400' }
+    const d = cur - old
+    const pct = (d / old) * 100
+    const sign = d >= 0 ? '+' : '−'
+    return { text: `${sign}${Math.abs(d).toFixed(0)} L (${sign}${Math.abs(pct).toFixed(0)}%) vs prior ${spanDays}d`, tone: 'text-slate-500 dark:text-slate-400' }
+  }
+
+  const kpi = [
+    { label: `Zone 1 · ${spanDays}d`, cur: sum(rows, 1), prev: sum(prevRows, 1), unit: 'L' },
+    { label: `Zone 2 · ${spanDays}d`, cur: sum(rows, 2), prev: sum(prevRows, 2), unit: 'L' },
+    { label: 'Trips', cur: trips(rows), prev: trips(prevRows), unit: '', trips: true },
+  ]
+
+  return (
+    <>
+      <PageHeader title="Daily monitoring" sub="Consumption, peak flow and leak trips per day">
+        <div className="no-print flex items-center gap-2">
+          <a href={`/api/admin/reports/daily/export.csv?${qs}`} className="btn-secondary" download>
+            <Download size={15} /> CSV
+          </a>
+          <button className="btn-secondary" onClick={() => window.print()}>
+            <Printer size={15} /> Print
+          </button>
+        </div>
+      </PageHeader>
+
+      {/* range picker */}
+      <div className="no-print mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-1 dark:bg-slate-800">
+          {PRESETS.map((p) => {
+            const f = daysAgoPH(p.days)
+            const active = from === f && to === todayPH()
+            return (
+              <button
+                key={p.days}
+                onClick={() => { setFrom(f); setTo(todayPH()) }}
+                className={`h-7 rounded-md px-3 text-xs font-medium ${active ? 'bg-white text-navy shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-navy dark:text-slate-400'}`}
+              >
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+        <input type="date" className="input !h-9 w-36" value={from} max={to} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+        <span className="text-xs text-slate-400">to</span>
+        <input type="date" className="input !h-9 w-36" value={to} min={from} max={todayPH()} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
+      </div>
+
+      {/* comparison strip */}
+      <div className="card mb-4 grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {kpi.map((k) => {
+          const c = cmp(k.cur, k.prev)
+          return (
+            <div key={k.label} className="px-5 py-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{k.label}</p>
+              <p className="num mt-1 text-2xl font-medium">
+                {k.unit ? fmtL(k.cur) : fmtInt(k.cur)}
+                {k.unit && <span className="ml-1 text-sm font-normal text-slate-400">{k.unit}</span>}
+              </p>
+              <p className={`num mt-0.5 text-xs ${c.tone}`}>{c.text}</p>
+            </div>
+          )
+        })}
+      </div>
+
+      {loading ? (
+        <Skeleton className="h-[280px] w-full" />
+      ) : error && !rows.length ? (
+        <ErrorState onRetry={refresh} label="Could not load reports" />
+      ) : !rows.length ? (
+        <EmptyState title="No daily reports in this range" hint="The device posts a summary at each midnight rollover" />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {/* liters per day */}
+            <section className="card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Daily consumption</h2>
+                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Zone 1</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-slate-400 dark:bg-slate-500" /> Zone 2</span>
+                </div>
+              </div>
+              <div className="h-[220px]">
+                <ResponsiveContainer>
+                  <BarChart data={chartData} margin={{ top: 6, right: 8, bottom: 0, left: -8 }} barGap={3}>
+                    <CartesianGrid vertical={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeOpacity={0.7} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} stroke="currentColor" className="text-slate-400" />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} stroke="currentColor" className="text-slate-400" />
+                    <Tooltip
+                      content={({ active, payload, label }) =>
+                        active && payload?.length ? (
+                          <div className="card !rounded-lg px-3 py-2 text-xs shadow-pop">
+                            <p className="mb-1 text-slate-500 dark:text-slate-400">{label}</p>
+                            {payload.map((p) => (
+                              <p key={p.dataKey} className="num flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                                {p.name}: {fmtL(p.value)} L
+                              </p>
+                            ))}
+                          </div>
+                        ) : null
+                      }
+                    />
+                    <Bar dataKey="z1" name="Zone 1" fill="#0EA5E9" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="z2" name="Zone 2" fill="#94A3B8" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            {/* peak flow per day */}
+            <section className="card p-5">
+              <h2 className="mb-3 text-sm font-semibold">Peak flow per day</h2>
+              <div className="h-[220px]">
+                <ResponsiveContainer>
+                  <LineChart data={chartData} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
+                    <CartesianGrid vertical={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeOpacity={0.7} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} stroke="currentColor" className="text-slate-400" />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} stroke="currentColor" className="text-slate-400" tickFormatter={(v) => Number(v).toFixed(0)} />
+                    <Tooltip
+                      content={({ active, payload, label }) =>
+                        active && payload?.length ? (
+                          <div className="card !rounded-lg px-3 py-2 text-xs shadow-pop">
+                            <p className="mb-1 text-slate-500 dark:text-slate-400">{label}</p>
+                            {payload.map((p) => (
+                              <p key={p.dataKey} className="num flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                                {p.name}: {fmtLpm(p.value)} L/min
+                              </p>
+                            ))}
+                          </div>
+                        ) : null
+                      }
+                    />
+                    <Line type="linear" dataKey="p1" name="Zone 1 peak" stroke="#0EA5E9" strokeWidth={2} dot={false} />
+                    <Line type="linear" dataKey="p2" name="Zone 2 peak" stroke="#94A3B8" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          </div>
+
+          {/* table */}
+          <section className="card mt-4 overflow-hidden">
+            <table className="hidden w-full md:table">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800">
+                  <th className="th">Date</th>
+                  <th className="th text-right">Zone 1 liters</th>
+                  <th className="th text-right">Z1 peak</th>
+                  <th className="th text-right">Zone 2 liters</th>
+                  <th className="th text-right">Z2 peak</th>
+                  <th className="th text-right">Trips</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
+                {rows.map((r) => (
+                  <tr key={r.report_date}>
+                    <td className="td num">{fmtDateShort(r.report_date)}</td>
+                    <td className="td num text-right font-medium">{fmtL(r.z1_daily_l)} L</td>
+                    <td className="td num text-right text-slate-500 dark:text-slate-400">{fmtLpm(r.z1_peak_lpm)}</td>
+                    <td className="td num text-right font-medium">{fmtL(r.z2_daily_l)} L</td>
+                    <td className="td num text-right text-slate-500 dark:text-slate-400">{fmtLpm(r.z2_peak_lpm)}</td>
+                    <td className={`td num text-right ${Number(r.trips) > 0 ? 'font-medium text-red-600 dark:text-red-400' : 'text-slate-400'}`}>
+                      {r.trips}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+              {rows.map((r) => (
+                <li key={r.report_date} className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="num text-sm font-medium">{fmtDateShort(r.report_date)}</p>
+                    {Number(r.trips) > 0 && <span className="pill bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">{r.trips} trip{r.trips > 1 ? 's' : ''}</span>}
+                  </div>
+                  <p className="num mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Z1 {fmtL(r.z1_daily_l)} L · pk {fmtLpm(r.z1_peak_lpm)} · Z2 {fmtL(r.z2_daily_l)} L · pk {fmtLpm(r.z2_peak_lpm)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+    </>
+  )
+}
