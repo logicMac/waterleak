@@ -160,7 +160,7 @@ export default function AppLayout() {
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-24 pt-5 sm:px-6 md:pb-10">
+        <main className="w-full flex-1 px-4 pb-24 pt-5 sm:px-6 md:pb-10">
           <Outlet />
         </main>
       </div>

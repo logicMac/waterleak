@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Plus, Pencil, Trash2, Wifi, WifiOff, Bell, Cpu, SlidersHorizontal, Users as UsersIcon, Check,
+  Plus, Pencil, Trash2, Wifi, WifiOff, Bell, Cpu, SlidersHorizontal, Users as UsersIcon, Check, Sparkles,
 } from 'lucide-react'
 import { api } from '../api/client'
 import { usePoll } from '../hooks/usePoll'
@@ -16,6 +16,7 @@ const TABS = [
   ['detection', 'Detection', SlidersHorizontal],
   ['connectivity', 'Connectivity', Wifi],
   ['notifications', 'Notifications', Bell],
+  ['ai', 'AI', Sparkles],
   ['device', 'Device info', Cpu],
   ['users', 'Users', UsersIcon, 'admin'],
 ]
@@ -60,6 +61,7 @@ export default function Settings() {
       {tab === 'detection' && <DetectionTab isAdmin={isAdmin} />}
       {tab === 'connectivity' && <ConnectivityTab />}
       {tab === 'notifications' && <NotificationsTab isAdmin={isAdmin} />}
+      {tab === 'ai' && <AiTab isAdmin={isAdmin} />}
       {tab === 'device' && <DeviceTab isAdmin={isAdmin} />}
       {tab === 'users' && isAdmin && <UsersTab />}
     </>
@@ -141,7 +143,7 @@ function DetectionTab({ isAdmin }) {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-none">
       <section className="card p-5">
         <h2 className="text-sm font-semibold">Leak detection thresholds</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -189,7 +191,7 @@ function ConnectivityTab() {
     ['Report cadence', 'Every 5 s'],
   ]
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-none space-y-4">
       <section className="card p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Server link</h2>
@@ -279,7 +281,7 @@ function NotificationsTab({ isAdmin }) {
   ]
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-none space-y-4">
       <section className="card p-5">
         <h2 className="text-sm font-semibold">Alert channels</h2>
         <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
@@ -419,6 +421,109 @@ function RecipientModal({ open, initial, busy, onClose, onSave }) {
   )
 }
 
+/* ── AI (Groq) ── */
+function AiTab({ isAdmin }) {
+  const toast = useToast()
+  const { settings, loading, refresh } = useSettings()
+  const [form, setForm] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (settings && !form) {
+      setForm({
+        enabled: settings['ai.enabled'] === '1',
+        model: settings['ai.model'] ?? 'llama-3.3-70b-versatile',
+        api_key: '',
+        masked_key: settings['ai.api_key'] ?? '',
+      })
+    }
+  }, [settings, form])
+
+  if (loading || !form) return <Skeleton className="h-64" />
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      await api.put('/admin/settings', {
+        'ai.enabled': form.enabled,
+        'ai.model': form.model,
+        ...(form.api_key ? { 'ai.api_key': form.api_key } : {}),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      refresh()
+      toast.success('AI settings saved')
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="max-w-none">
+      <section className="card p-5">
+        <h2 className="text-sm font-semibold">AI summaries</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Generates a plain-language summary of the last 7 days of alerts and daily reports on the
+          Reports page, powered by Groq.
+        </p>
+        <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="flex items-center justify-between gap-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Enable AI summaries</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Show the Generate button on Reports</p>
+            </div>
+            <button
+              role="switch"
+              aria-checked={form.enabled}
+              onClick={() => setForm((f) => ({ ...f, enabled: !f.enabled }))}
+              disabled={!isAdmin}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${form.enabled ? 'bg-green-600' : 'bg-slate-300 dark:bg-slate-600'} ${!isAdmin ? 'cursor-not-allowed opacity-50' : ''}`}
+              aria-label="Toggle AI summaries"
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${form.enabled ? 'left-[22px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+          <div className="py-3">
+            <Field label="Model">
+              <input className="input" value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} disabled={!isAdmin} />
+            </Field>
+          </div>
+          <div className="py-3">
+            <Field
+              label="Groq API key"
+              hint={
+                form.masked_key
+                  ? `Stored key ends ${form.masked_key.slice(-4)} — leave blank to keep it.`
+                  : 'Stored in the database, never returned to the browser.'
+              }
+            >
+              <input
+                type="password"
+                className="input"
+                autoComplete="new-password"
+                placeholder={form.masked_key ? form.masked_key : 'gsk_…'}
+                value={form.api_key}
+                onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
+                disabled={!isAdmin}
+              />
+            </Field>
+          </div>
+        </div>
+        <SaveRow onSave={save} busy={busy} saved={saved} isAdmin={isAdmin} />
+      </section>
+      <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+        The key is stored in the database (masked on every read — staff and even admins only see
+        the last 4 characters). Summaries are generated server-side at{' '}
+        <code>POST /api/admin/ai/summary</code>. <code>GROQ_API_KEY</code> in <code>.env</code> is
+        only a fallback.
+      </p>
+    </div>
+  )
+}
+
 /* ── Device info ── */
 function DeviceTab({ isAdmin }) {
   const toast = useToast()
@@ -451,7 +556,7 @@ function DeviceTab({ isAdmin }) {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-none space-y-4">
       <section className="card p-5">
         <h2 className="text-sm font-semibold">Device</h2>
         <dl className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
@@ -536,7 +641,7 @@ function UsersTab() {
   if (error) return <ErrorState onRetry={refresh} label="Could not load users" />
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-none">
       <section className="card p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Accounts</h2>

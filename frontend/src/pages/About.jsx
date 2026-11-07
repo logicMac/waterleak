@@ -14,7 +14,7 @@ export default function About() {
   return (
     <>
       <PageHeader title="About" sub="The system and the people behind it" />
-      <div className="grid max-w-3xl grid-cols-1 gap-4">
+      <div className="grid max-w-none grid-cols-1 gap-4">
         <section className="card flex items-start gap-4 p-6">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-white">
             <Droplets size={24} strokeWidth={2.2} />

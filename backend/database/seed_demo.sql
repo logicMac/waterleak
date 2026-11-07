@@ -29,6 +29,8 @@ INSERT INTO settings (`key`, `value`) VALUES
   ('notify.on_night_flow',         '1'),
   ('notify.on_long_flow',          '1'),
   ('notify.on_burst_rate',         '1'),
+  ('ai.enabled',                   '0'),
+  ('ai.model',                     'llama-3.3-70b-versatile'),
   ('device.name',                  'LeakGuard Main Unit'),
   ('device.location',              'Schola de San Jose, Polomolok')
 ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);

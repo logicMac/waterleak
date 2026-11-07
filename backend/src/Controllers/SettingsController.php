@@ -15,6 +15,9 @@ final class SettingsController
         'notify.on_night_flow'         => 'bool',
         'notify.on_long_flow'          => 'bool',
         'notify.on_burst_rate'         => 'bool',
+        'ai.enabled'                   => 'bool',
+        'ai.model'                     => 'string',
+        'ai.api_key'                   => 'secret',
         'device.name'                  => 'string',
         'device.location'              => 'string',
     ];
@@ -24,6 +27,12 @@ final class SettingsController
     {
         AdminAuth::requireUser();
         $rows = DB::pdo()->query('SELECT `key`, `value` FROM settings')->fetchAll(PDO::FETCH_KEY_PAIR);
+        // Never return secrets — show a masked form so the UI knows one is set.
+        foreach (self::KEYS as $k => $type) {
+            if ($type === 'secret' && !empty($rows[$k])) {
+                $rows[$k] = '••••' . substr($rows[$k], -4);
+            }
+        }
         Http::json(['ok' => true, 'settings' => $rows]);
     }
 
@@ -39,6 +48,17 @@ final class SettingsController
         foreach ($b as $key => $value) {
             if (!isset(self::KEYS[$key])) {
                 Http::error("Unknown setting: $key", 400);
+            }
+            if (self::KEYS[$key] === 'secret') {
+                // Empty or echoed-back masked value = keep the stored secret.
+                if (!is_string($value) || $value === '' || str_starts_with($value, '••••')) {
+                    continue;
+                }
+                if (strlen($value) > 190) {
+                    Http::error("Invalid value for $key", 400);
+                }
+                $upd->execute([$key, $value]);
+                continue;
             }
             $value = self::validate(self::KEYS[$key], $value, $key);
             $upd->execute([$key, $value]);

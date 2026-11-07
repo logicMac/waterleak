@@ -112,6 +112,7 @@ $routes = [
     ['GET',  'admin/settings',                [SettingsController::class, 'get']],
     ['PUT',  'admin/settings',                [SettingsController::class, 'put']],
     ['POST', 'admin/control',                 [ControlController::class, 'control']],
+    ['POST', 'admin/ai/summary',              [AiController::class, 'summary']],
     ['GET',  'admin/users',                   [UsersController::class, 'index']],
     ['POST', 'admin/users',                   [UsersController::class, 'create']],
     ['GET',  'admin/recipients',              [RecipientsController::class, 'index']],
