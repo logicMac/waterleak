@@ -1,12 +1,11 @@
-import { Droplets, Cpu, Radio, Bell, Gauge, ToggleLeft, MonitorSmartphone } from 'lucide-react'
+import { Droplets, Cpu, Radio, Bell, Gauge, MonitorSmartphone } from 'lucide-react'
 import { PageHeader } from '../components/States'
 
 const HARDWARE = [
-  { icon: Cpu, text: 'ESP32-WROOM-32 microcontroller' },
-  { icon: Gauge, text: '2× YF-S201 hall-effect flow sensors (Zone 1 & Zone 2)' },
-  { icon: ToggleLeft, text: 'Relay-controlled solenoid water valve' },
-  { icon: MonitorSmartphone, text: 'SSD1306 OLED display + DS1302 real-time clock' },
-  { icon: Bell, text: 'Red LED strobe, buzzer and reset button' },
+  { icon: Cpu, text: 'ESP32-S3 microcontroller' },
+  { icon: Gauge, text: '2× hall-effect flow sensors (Zone 1 & Zone 2)' },
+  { icon: MonitorSmartphone, text: 'SSD1306 OLED display + DS1307 real-time clock' },
+  { icon: Bell, text: 'Alarm LED, buzzer and reset button' },
   { icon: Radio, text: 'SIM900A GSM module — proposed for SMS alerts' },
 ]
 
@@ -24,8 +23,8 @@ export default function About() {
             <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
               An embedded IoT device for water leak detection and alert. Two flow sensors watch the
               supply lines; abnormal flow — at night, sustained too long, or above the burst rate —
-              trips the affected zone, closes the main valve automatically, and reports the event
-              here within seconds.
+              trips the affected zone, raises the buzzer + LED alarm on the device, and reports the
+              event here within seconds.
             </p>
           </div>
         </section>

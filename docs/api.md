@@ -1,7 +1,10 @@
 # LeakGuard API
 
-Base URL = `SERVER_BASE` in the firmware, e.g. `https://your-domain/api`.
-Under WAMP locally: `http://localhost/waterleak/backend/public/api`.
+Base URL = `SERVER_BASE` in the firmware — the sketch documents
+`https://your-domain/api/leak`, and the router also accepts the bare
+`https://your-domain/api` form (the `leak/` prefix is stripped for device
+routes). Under WAMP locally: `http://localhost/waterleak/backend/public/api`
+(or `…/api/leak`).
 
 All bodies are JSON. Errors return `{"ok":false,"error":"…"}` with a matching
 HTTP status. Device requests carry `X-API-Key`; admin requests use a session
@@ -18,7 +21,7 @@ Device timestamps are `YYYY-MM-DD HH:MM:SS` in Asia/Manila, no timezone.
 {"device_id":"leakguard-01","timestamp":"2026-03-10 14:22:05",
  "zone1":{"flow_lpm":1.20,"total_l":35.40,"tripped":false},
  "zone2":{"flow_lpm":0.00,"total_l":10.10,"tripped":false},
- "valve_open":true,"rssi":-58}
+ "rssi":-58}
 ```
 
 Updates the device live row and appends to `readings`. `total_l` is cumulative
@@ -29,7 +32,7 @@ server-side. Response `200 {"ok":true}`.
 
 ```json
 {"device_id":"leakguard-01","timestamp":"2026-03-10 02:14:09","zone":1,
- "reason":"NIGHT FLOW","flow_lpm":2.35,"valve_open":false}
+ "reason":"NIGHT FLOW","flow_lpm":2.35}
 ```
 
 `reason` ∈ `NIGHT FLOW` | `LONG FLOW` | `BURST RATE`. Inserts an `active`
@@ -43,9 +46,9 @@ Idempotent on `UNIQUE(device_id, occurred_at, zone, reason)` — retries return
 {"device_id":"leakguard-01","timestamp":"…","event":"reset","source":"button"}
 ```
 
-`event` ∈ `reset` | `valve_closed` | `valve_opened`; `source` ∈ `button` |
+`event` = `reset` (the only event the firmware sends); `source` ∈ `button` |
 `remote`. A `reset` resolves all active alerts (time + source stored) and
-reopens the valve. Dedupe via the log's unique `dedupe_key`.
+clears the tripped flags. Dedupe via the log's unique `dedupe_key`.
 
 ### POST /daily — important, once at midnight rollover
 
@@ -60,12 +63,12 @@ Upsert on `(device_id, report_date)`.
 
 ### GET /commands?device_id=leakguard-01 — polled every 1 s
 
-- pending: `{"command":"reset"}` (or `"close_valve"` / `"open_valve"`)
+- pending: `{"command":"reset"}`
 - none: `{"command":null}`
 
 The body contains at most one quoted command word — the firmware matches by
-substring (`indexOf("\"reset\"")` etc.), so no descriptive text may contain
-those strings. The oldest pending command is marked `delivered` in the same
+substring (`indexOf("\"reset\"")`), so no descriptive text may contain that
+string. The oldest pending command is marked `delivered` in the same
 transaction (exactly-once). Pending commands older than 30 s are `expired`.
 
 ### GET /config?device_id=… (future firmware)
@@ -89,7 +92,7 @@ Session cookie (`LGSESS`, HttpOnly, SameSite=Lax). Writes require
 | POST | `/auth/login` | `{email,password}` → `{user,csrf_token}`; 5 fails/10 min → 429 |
 | POST | `/auth/logout` | destroys session |
 | GET | `/auth/me` | current user + csrf |
-| GET | `/status` | device, online (>15 s silent = offline), rssi, valve, zones, active alerts, today's KPIs |
+| GET | `/status` | device, online (>15 s silent = offline), rssi, zones, active alerts, today's KPIs |
 | GET | `/readings?range=15m|1h|24h|7d&zone=1|2|all` | downsampled server-side on 24h/7d |
 | GET | `/alerts?status=&zone=&from=&to=&page=` | 20/page |
 | GET | `/alerts/export.csv` | same filters |
@@ -98,7 +101,7 @@ Session cookie (`LGSESS`, HttpOnly, SameSite=Lax). Writes require
 | GET | `/logs/export.csv` | same filters |
 | GET | `/reports/daily?from=&to=` | daily reports |
 | GET | `/reports/daily/export.csv` | |
-| POST | `/control` `{command}` | admin only; `open_valve` rejected 409 while tripped |
+| POST | `/control` `{command:"reset"}` | admin only; the only command the firmware acts on |
 | GET | `/commands/{id}` | delivery status for the control UI |
 | GET / PUT | `/settings` | admin writes; whitelisted keys |
 | GET / POST | `/users` · PUT/DELETE `/users/{id}` | admin only |
@@ -112,11 +115,11 @@ BASE=http://localhost/waterleak/backend/public/api   # or :8899 via php -S
 
 # report
 curl -X POST "$BASE/report" -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"device_id":"leakguard-01","timestamp":"2026-03-10 14:22:05","zone1":{"flow_lpm":1.20,"total_l":35.40,"tripped":false},"zone2":{"flow_lpm":0.00,"total_l":10.10,"tripped":false},"valve_open":true,"rssi":-58}'
+  -d '{"device_id":"leakguard-01","timestamp":"2026-03-10 14:22:05","zone1":{"flow_lpm":1.20,"total_l":35.40,"tripped":false},"zone2":{"flow_lpm":0.00,"total_l":10.10,"tripped":false},"rssi":-58}'
 
 # alert (send twice — second returns duplicate:true)
 curl -X POST "$BASE/alert" -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
-  -d '{"device_id":"leakguard-01","timestamp":"2026-03-10 02:14:09","zone":1,"reason":"NIGHT FLOW","flow_lpm":2.35,"valve_open":false}'
+  -d '{"device_id":"leakguard-01","timestamp":"2026-03-10 02:14:09","zone":1,"reason":"NIGHT FLOW","flow_lpm":2.35}'
 
 # event / daily / commands / config
 curl -X POST "$BASE/event" -H "Content-Type: application/json" -H "X-API-Key: $KEY" \
@@ -131,7 +134,7 @@ curl -c jar -X POST "$BASE/admin/auth/login" -H 'Content-Type: application/json'
   -d '{"email":"admin@leakguard.local","password":"admin123"}'
 CSRF=<csrf_token from login>
 curl -b jar -X POST "$BASE/admin/control" -H 'Content-Type: application/json' \
-  -H "X-CSRF-Token: $CSRF" -d '{"command":"close_valve"}'
+  -H "X-CSRF-Token: $CSRF" -d '{"command":"reset"}'
 ```
 
 ## Test checklist (acceptance)
@@ -142,6 +145,6 @@ curl -b jar -X POST "$BASE/admin/control" -H 'Content-Type: application/json' \
 | Command exactly-once | POST `/admin/control`, poll `/commands` twice | First poll `{"command":"…"}`, second `{"command":null}` |
 | Offline detection | Stop reports > 15 s | `/status.online=false`; dashboard greys live numbers |
 | Expired commands | Issue command with device stopped, wait 30 s | `status='expired'`; device never receives it |
-| open_valve while tripped | Trip a zone, POST `{"command":"open_valve"}` | 409 with "use Reset" message |
+| Unknown command | POST `/admin/control` `{"command":"close_valve"}` | 400 — only `reset` is valid |
 | Bad API key | Any device call without/with wrong key | 401 |
 | Zone out of range | `"zone":3` in `/alert` | 400 |

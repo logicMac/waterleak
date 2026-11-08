@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import ZoneCard from '../components/ZoneCard'
 import FlowChart from '../components/FlowChart'
-import ValvePanel from '../components/ValvePanel'
+import DeviceControl from '../components/DeviceControl'
 import AlertBanner from '../components/AlertBanner'
 import ActivityFeed from '../components/ActivityFeed'
 import KpiStrip from '../components/KpiStrip'
@@ -51,7 +51,7 @@ export default function Dashboard() {
           try {
             if (Notification?.permission === 'granted') {
               new Notification('LeakGuard alert', {
-                body: `Zone ${a.zone} ${a.reason} — valve closed`,
+                body: `Zone ${a.zone} ${a.reason} — alarm on device`,
               })
             }
           } catch { /* Notification unsupported */ }
@@ -90,12 +90,6 @@ export default function Dashboard() {
               Last seen:{' '}
               <span className="num font-medium text-slate-700 dark:text-slate-200">
                 {status?.last_seen ? relTime(status.last_seen) : 'never'}
-              </span>
-            </span>
-            <span>
-              Valve:{' '}
-              <span className={`font-medium ${status?.valve_open ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {status ? (status.valve_open ? 'Open' : 'Closed') : '—'}
               </span>
             </span>
             {!online && status && (
@@ -147,7 +141,7 @@ export default function Dashboard() {
             onRetry={readingsPoll.refresh}
           />
         </div>
-        <ValvePanel status={status} isAdmin={isAdminRole} onChanged={setStatus} />
+        <DeviceControl status={status} isAdmin={isAdminRole} onChanged={setStatus} />
       </div>
 
       <div className="mt-4">

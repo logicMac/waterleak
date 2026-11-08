@@ -9,7 +9,7 @@ declare(strict_types=1);
 final class DeviceController
 {
     private const REASONS = ['NIGHT FLOW', 'LONG FLOW', 'BURST RATE'];
-    private const EVENTS  = ['reset', 'valve_closed', 'valve_opened'];
+    private const EVENTS  = ['reset'];
     private const SOURCES = ['button', 'remote'];
 
     /** POST /report — live state + a readings row. Not retried by the device. */
@@ -21,26 +21,25 @@ final class DeviceController
         $ts     = V::ts($b, 'timestamp');
         $z1     = V::zone($b, 'zone1');
         $z2     = V::zone($b, 'zone2');
-        $valve  = V::boolv($b, 'valve_open');
         $rssi   = V::int($b, 'rssi', -120, 0);
 
         $pdo = DB::pdo();
 
         $stmt = $pdo->prepare(
             'INSERT INTO devices
-               (device_id, name, last_seen, rssi, valve_open,
+               (device_id, name, last_seen, rssi,
                 z1_flow, z1_total, z1_tripped, z1_reason,
                 z2_flow, z2_total, z2_tripped, z2_reason)
-             VALUES (?,?,NOW(),?,?,?,?,?,NULL,?,?,?,NULL)
+             VALUES (?,?,NOW(),?,?,?,?,NULL,?,?,?,NULL)
              ON DUPLICATE KEY UPDATE
-               last_seen = NOW(), rssi = VALUES(rssi), valve_open = VALUES(valve_open),
+               last_seen = NOW(), rssi = VALUES(rssi),
                z1_flow = VALUES(z1_flow), z1_total = VALUES(z1_total), z1_tripped = VALUES(z1_tripped),
                z1_reason = IF(VALUES(z1_tripped) = 0, NULL, z1_reason),
                z2_flow = VALUES(z2_flow), z2_total = VALUES(z2_total), z2_tripped = VALUES(z2_tripped),
                z2_reason = IF(VALUES(z2_tripped) = 0, NULL, z2_reason)'
         );
         $stmt->execute([
-            $dev, $dev, $rssi, (int) $valve,
+            $dev, $dev, $rssi,
             $z1['flow_lpm'], $z1['total_l'], (int) $z1['tripped'],
             $z2['flow_lpm'], $z2['total_l'], (int) $z2['tripped'],
         ]);
@@ -48,14 +47,14 @@ final class DeviceController
         $stmt = $pdo->prepare(
             'INSERT INTO readings
                (device_id, recorded_at, z1_flow, z1_total, z1_tripped,
-                z2_flow, z2_total, z2_tripped, valve_open, rssi, received_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,NOW())'
+                z2_flow, z2_total, z2_tripped, rssi, received_at)
+             VALUES (?,?,?,?,?,?,?,?,?,NOW())'
         );
         $stmt->execute([
             $dev, $ts,
             $z1['flow_lpm'], $z1['total_l'], (int) $z1['tripped'],
             $z2['flow_lpm'], $z2['total_l'], (int) $z2['tripped'],
-            (int) $valve, $rssi,
+            $rssi,
         ]);
 
         Http::json(['ok' => true]);
@@ -71,7 +70,6 @@ final class DeviceController
         $zone   = V::int($b, 'zone', 1, 2);
         $reason = V::oneOf($b, 'reason', self::REASONS);
         $flow   = V::num($b, 'flow_lpm', 0, 200);
-        V::boolv($b, 'valve_open'); // validated though the firmware always sends false here
 
         $pdo = DB::pdo();
         $stmt = $pdo->prepare(
@@ -86,7 +84,7 @@ final class DeviceController
                 ->execute([$dev, $dev]);
             $col = $zone === 1 ? 'z1' : 'z2';
             $pdo->prepare(
-                "UPDATE devices SET {$col}_tripped = 1, {$col}_reason = ?, valve_open = 0, last_seen = NOW()
+                "UPDATE devices SET {$col}_tripped = 1, {$col}_reason = ?, last_seen = NOW()
                  WHERE device_id = ?"
             )->execute([$reason, $dev]);
 
@@ -97,7 +95,7 @@ final class DeviceController
                  VALUES (?,?,?,\'device\',?,?)'
             )->execute([
                 $dev, $ts, 'alert',
-                sprintf('Zone %d %s at %.2f L/min — valve closed', $zone, $reason, $flow),
+                sprintf('Zone %d %s at %.2f L/min — alarm raised on device', $zone, $reason, $flow),
                 $dedupe,
             ]);
 
@@ -113,7 +111,7 @@ final class DeviceController
         Http::json(['ok' => true, 'duplicate' => !$isNew]);
     }
 
-    /** POST /event — important. reset resolves active alerts and reopens the valve. */
+    /** POST /event — important. reset resolves active alerts and clears the trips. */
     public static function event(): void
     {
         DeviceAuth::check();
@@ -128,11 +126,7 @@ final class DeviceController
             ->execute([$dev, $dev]);
 
         $dedupe  = implode('|', ['event', $dev, $ts, $event, $source]);
-        $message = match ($event) {
-            'reset'         => "System reset ($source) — alerts resolved, valve reopened",
-            'valve_closed'  => "Valve closed ($source)",
-            'valve_opened'  => "Valve opened ($source)",
-        };
+        $message = "System reset ($source) — alerts resolved";
         $stmt = $pdo->prepare(
             'INSERT IGNORE INTO activity_logs
                (device_id, occurred_at, type, source, message, dedupe_key)
@@ -142,26 +136,14 @@ final class DeviceController
         $isNew = $stmt->rowCount() === 1;
 
         if ($isNew) {
-            switch ($event) {
-                case 'reset':
-                    $pdo->prepare(
-                        "UPDATE alerts SET status = 'resolved', resolved_at = NOW(), resolved_source = ?
-                         WHERE device_id = ? AND status IN ('active','acknowledged')"
-                    )->execute([$source, $dev]);
-                    $pdo->prepare(
-                        'UPDATE devices SET z1_tripped = 0, z1_reason = NULL, z2_tripped = 0,
-                         z2_reason = NULL, valve_open = 1, last_seen = NOW() WHERE device_id = ?'
-                    )->execute([$dev]);
-                    break;
-                case 'valve_closed':
-                    $pdo->prepare('UPDATE devices SET valve_open = 0, last_seen = NOW() WHERE device_id = ?')
-                        ->execute([$dev]);
-                    break;
-                case 'valve_opened':
-                    $pdo->prepare('UPDATE devices SET valve_open = 1, last_seen = NOW() WHERE device_id = ?')
-                        ->execute([$dev]);
-                    break;
-            }
+            $pdo->prepare(
+                "UPDATE alerts SET status = 'resolved', resolved_at = NOW(), resolved_source = ?
+                 WHERE device_id = ? AND status IN ('active','acknowledged')"
+            )->execute([$source, $dev]);
+            $pdo->prepare(
+                'UPDATE devices SET z1_tripped = 0, z1_reason = NULL, z2_tripped = 0,
+                 z2_reason = NULL, last_seen = NOW() WHERE device_id = ?'
+            )->execute([$dev]);
         }
 
         Http::json(['ok' => true, 'duplicate' => !$isNew]);
@@ -205,7 +187,7 @@ final class DeviceController
      * GET /commands?device_id=… — polled every 1 s.
      * Returns the oldest pending command and marks it delivered in the same
      * transaction (exactly-once). Commands older than COMMAND_TTL_S expire so a
-     * stale "close_valve" never runs after the device was offline.
+     * stale "reset" never runs after the device was offline.
      * The body carries at most one quoted command word — the firmware does a
      * substring match on the raw body.
      */

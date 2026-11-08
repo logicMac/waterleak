@@ -22,11 +22,10 @@ const TABS = [
 ]
 
 const HARDWARE = [
-  'ESP32-WROOM-32 microcontroller',
-  '2× YF-S201 hall-effect flow sensors (Zone 1 & Zone 2)',
-  'Relay-controlled solenoid water valve',
-  'SSD1306 0.96″ OLED display + DS1302 RTC',
-  'Red LED strobe + buzzer + reset button',
+  'ESP32-S3 microcontroller',
+  '2× hall-effect flow sensors (Zone 1 & Zone 2)',
+  'SSD1306 0.96″ OLED display + DS1307 RTC',
+  'Alarm LED + buzzer + reset button',
   'SIM900A GSM module — proposed for SMS alerts',
 ]
 
@@ -147,7 +146,7 @@ function DetectionTab({ isAdmin }) {
       <section className="card p-5">
         <h2 className="text-sm font-semibold">Leak detection thresholds</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          The device trips a zone and closes the valve when flow leaves these limits.
+          The device trips a zone and raises its buzzer + LED alarm when flow leaves these limits.
         </p>
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Normal flow limit (L/min)" hint="Flow at or below this is normal demand.">
@@ -678,8 +677,8 @@ function UsersTab() {
           ))}
         </ul>
         <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
-          Staff can view the dashboard and acknowledge alerts. Admins additionally control the valve,
-          edit settings and manage users. Every control action is logged with the issuing user.
+          Staff can view the dashboard and acknowledge alerts. Admins additionally reset the device
+          remotely, edit settings and manage users. Every control action is logged with the issuing user.
         </p>
       </section>
 

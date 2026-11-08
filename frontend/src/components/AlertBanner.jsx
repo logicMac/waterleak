@@ -34,7 +34,7 @@ export default function AlertBanner({ alerts, onChanged }) {
           Zone {a.zone} tripped — {a.reason}
         </p>
         <p className="text-xs text-red-700/80 dark:text-red-300/80">
-          {fmtLpm(a.flow_lpm)} L/min at {fmtDateTime(a.occurred_at)} · valve closed automatically
+          {fmtLpm(a.flow_lpm)} L/min at {fmtDateTime(a.occurred_at)} · alarm active on device
         </p>
       </div>
       <div className="flex items-center gap-2">

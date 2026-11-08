@@ -39,7 +39,7 @@ final class AiController
 
         $facts = [
             'device' => $device ? [
-                'id' => $device['device_id'], 'valve_open' => (bool) $device['valve_open'],
+                'id' => $device['device_id'],
                 'zone1_tripped' => (bool) $device['z1_tripped'], 'zone1_reason' => $device['z1_reason'],
                 'zone2_tripped' => (bool) $device['z2_tripped'], 'zone2_reason' => $device['z2_reason'],
             ] : null,

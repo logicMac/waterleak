@@ -81,7 +81,7 @@ export default function Logs() {
         ) : error && !rows.length ? (
           <div className="p-4"><ErrorState onRetry={refresh} label="Could not load logs" /></div>
         ) : !rows.length ? (
-          <div className="p-4"><EmptyState title="No log entries match" hint="Alerts, resets, valve actions and commands are recorded here" /></div>
+          <div className="p-4"><EmptyState title="No log entries match" hint="Alerts, resets and commands are recorded here" /></div>
         ) : (
           <>
             <table className="hidden w-full md:table">

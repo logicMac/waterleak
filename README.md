@@ -66,17 +66,20 @@ php simulator/simulate.php --daily         # also post one daily summary
 ```
 
 The simulator behaves like the firmware: reports every 5 s, polls commands
-every 1 s, reacts to Close/Open/Reset and posts the matching events.
+every 1 s, reacts to Reset and posts the matching event.
 
 ## Pointing the firmware at this backend
 
 In the `.ino`:
 
 ```cpp
-const char *SERVER_BASE = "https://your-domain/api";   // no trailing slash
+const char *SERVER_BASE = "https://your-domain/api/leak";   // no trailing slash
 const char *API_KEY     = "<same as DEVICE_API_KEY in .env>";
 const char *DEVICE_ID   = "leakguard-01";
 ```
+
+Both `…/api` and `…/api/leak` work — the router strips the `leak/` prefix on
+device routes.
 
 The firmware uses `setInsecure()` while developing; for production, pin your
 server's root CA via `sec.setCACert(ROOT_CA)` (see the comment in `doRequest`).
@@ -98,11 +101,11 @@ server's root CA via `sec.setCACert(ROOT_CA)` (see the comment in `doRequest`).
 
 - **Commands are exactly-once:** `/commands` marks the oldest pending command
   `delivered` inside the same transaction it is read; pending commands expire
-  after 30 s so a stale `close_valve` never executes after an outage.
+  after 30 s so a stale `reset` never executes after an outage.
 - **Idempotent alerts/events:** retry-safe via `UNIQUE(device_id, occurred_at,
   zone, reason)` and the log `dedupe_key`.
 - **Thresholds:** saved in Settings and served at `GET /api/config`, but the
   current firmware hard-codes them (`ZoneConfig` in `leak_logic.h`) — they take
   effect once firmware config sync is enabled.
-- **Roles:** staff views + acknowledges; admin controls the valve, edits
-  settings, manages users.
+- **Roles:** staff views + acknowledges; admin can reset the device remotely,
+  edits settings, manages users.

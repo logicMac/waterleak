@@ -83,6 +83,12 @@ session_start();
 $uri  = (string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $pos  = strpos($uri, '/api/');
 $route = $pos === false ? '' : rtrim(substr($uri, $pos + 5), '/');
+// The firmware's SERVER_BASE may mount the device API under /api/leak
+// (e.g. https://host/api/leak + "/report"); accept that prefix for the
+// device routes so both /api/report and /api/leak/report work.
+if (preg_match('#^leak/(report|alert|daily|event|commands|config|health)$#', $route, $pm)) {
+    $route = $pm[1];
+}
 $method = Http::method();
 
 $routes = [

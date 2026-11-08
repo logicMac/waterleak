@@ -45,10 +45,10 @@ INSERT INTO notification_recipients (name, phone, email, active) VALUES
 -- morning (06-08) and evening (17-20); near-silent overnight.
 INSERT INTO readings
   (device_id, recorded_at, z1_flow, z1_total, z1_tripped,
-   z2_flow, z2_total, z2_tripped, valve_open, rssi, received_at)
+   z2_flow, z2_total, z2_tripped, rssi, received_at)
 SELECT device_id, t,
        z1_flow, ROUND(z1_run, 2), 0,
-       z2_flow, ROUND(z2_run, 2), 0, 1, rssi, t
+       z2_flow, ROUND(z2_run, 2), 0, rssi, t
 FROM (
   SELECT t, f1 AS z1_flow, f2 AS z2_flow, rssi, 'leakguard-01' AS device_id,
          SUM(f1) OVER (ORDER BY t ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / 60 AS z1_run,
@@ -119,21 +119,21 @@ SELECT 'leakguard-01', 1, 'BURST RATE', 16.40,
 -- ── Matching activity log entries ───────────────────────────────────────────
 INSERT IGNORE INTO activity_logs (device_id, occurred_at, type, source, message, dedupe_key)
 SELECT 'leakguard-01', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 DAY), '%Y-%m-%d 02:14:09'),
-       'alert', 'device', 'Zone 1 NIGHT FLOW at 2.35 L/min — valve closed',
+       'alert', 'device', 'Zone 1 NIGHT FLOW at 2.35 L/min — alarm raised on device',
        CONCAT('alert|leakguard-01|', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 DAY), '%Y-%m-%d 02:14:09'), '|1|NIGHT FLOW')
 UNION ALL
 SELECT 'leakguard-01', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 DAY), '%Y-%m-%d 02:30:00'),
-       'reset', 'button', 'System reset (button) — alerts resolved, valve reopened',
+       'reset', 'button', 'System reset (button) — alerts resolved',
        CONCAT('event|leakguard-01|', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 DAY), '%Y-%m-%d 02:30:00'), '|reset|button')
 UNION ALL
 SELECT 'leakguard-01', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 4 DAY), '%Y-%m-%d 11:42:00'),
-       'alert', 'device', 'Zone 2 LONG FLOW at 3.10 L/min — valve closed',
+       'alert', 'device', 'Zone 2 LONG FLOW at 3.10 L/min — alarm raised on device',
        CONCAT('alert|leakguard-01|', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 4 DAY), '%Y-%m-%d 11:42:00'), '|2|LONG FLOW')
 UNION ALL
 SELECT 'leakguard-01', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 6 DAY), '%Y-%m-%d 15:03:22'),
-       'alert', 'device', 'Zone 1 BURST RATE at 16.40 L/min — valve closed',
+       'alert', 'device', 'Zone 1 BURST RATE at 16.40 L/min — alarm raised on device',
        CONCAT('alert|leakguard-01|', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 6 DAY), '%Y-%m-%d 15:03:22'), '|1|BURST RATE')
 UNION ALL
 SELECT 'leakguard-01', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 6 DAY), '%Y-%m-%d 15:20:00'),
-       'reset', 'remote', 'System reset (remote) — alerts resolved, valve reopened',
+       'reset', 'remote', 'System reset (remote) — alerts resolved',
        CONCAT('event|leakguard-01|', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 6 DAY), '%Y-%m-%d 15:20:00'), '|reset|remote');

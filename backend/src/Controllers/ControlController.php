@@ -3,12 +3,11 @@ declare(strict_types=1);
 
 final class ControlController
 {
-    private const COMMANDS = ['reset', 'close_valve', 'open_valve'];
+    private const COMMANDS = ['reset']; // the firmware only acts on "reset"
 
     /**
-     * POST /admin/control {"command":"reset"|"close_valve"|"open_valve"}
-     * Admin only. open_valve is rejected while a zone is tripped — the device
-     * ignores it anyway; the user should Reset instead.
+     * POST /admin/control {"command":"reset"}
+     * Admin only. The command is queued for the device's next /commands poll.
      */
     public static function control(): void
     {
@@ -20,12 +19,6 @@ final class ControlController
         $d = $pdo->query('SELECT * FROM devices ORDER BY device_id LIMIT 1')->fetch();
         if (!$d) {
             Http::error('No device registered yet', 409);
-        }
-        if ($cmd === 'open_valve' && ((int) $d['z1_tripped'] || (int) $d['z2_tripped'])) {
-            Http::error(
-                'A zone is tripped — the device ignores Open while tripped. Use Reset instead.',
-                409
-            );
         }
 
         $pdo->prepare(

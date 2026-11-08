@@ -22,7 +22,7 @@ final class Notifier
               . "Reason:  $reason\n"
               . "Flow:    $flow L/min\n"
               . "Time:    $when (Asia/Manila)\n"
-              . "Valve:   closed automatically\n\n"
+              . "Alarm:   buzzer + LED active on the device\n\n"
               . "Open the LeakGuard dashboard to acknowledge or reset the system.";
 
         try {
@@ -39,7 +39,7 @@ final class Notifier
                 SmtpMailer::send($r['email'], $subject, $body);
             }
             if (!empty($r['phone'])) {
-                $sms->send($r['phone'], "LeakGuard: Zone $zone $reason at $flow L/min. Valve closed. $when");
+                $sms->send($r['phone'], "LeakGuard: Zone $zone $reason at $flow L/min. Alarm on device. $when");
             }
         }
     }

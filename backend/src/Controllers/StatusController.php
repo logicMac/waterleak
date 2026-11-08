@@ -68,7 +68,6 @@ final class StatusController
             'online'    => $online,
             'last_seen' => $d['last_seen'],
             'rssi'      => $d['rssi'] !== null ? (int) $d['rssi'] : null,
-            'valve_open' => (bool) $d['valve_open'],
             'zones'     => [
                 [
                     'zone'     => 1,

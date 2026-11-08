@@ -32,7 +32,7 @@ final class ReadingsController
 
         if ($bucket === 0) {
             $stmt = $pdo->prepare(
-                'SELECT recorded_at AS t, z1_flow, z2_flow, z1_tripped, z2_tripped, valve_open, rssi
+                'SELECT recorded_at AS t, z1_flow, z2_flow, z1_tripped, z2_tripped, rssi
                  FROM readings
                  WHERE device_id = ? AND recorded_at >= (NOW() - INTERVAL ' . $interval . ')
                  ORDER BY recorded_at ASC'
@@ -42,7 +42,7 @@ final class ReadingsController
                 'SELECT MIN(recorded_at) AS t,
                         AVG(z1_flow) AS z1_flow, AVG(z2_flow) AS z2_flow,
                         MAX(z1_tripped) AS z1_tripped, MAX(z2_tripped) AS z2_tripped,
-                        MAX(valve_open) AS valve_open, AVG(rssi) AS rssi
+                        AVG(rssi) AS rssi
                  FROM readings
                  WHERE device_id = ? AND recorded_at >= (NOW() - INTERVAL ' . $interval . ')
                  GROUP BY FLOOR(UNIX_TIMESTAMP(recorded_at) / ' . $bucket . ')
@@ -57,7 +57,6 @@ final class ReadingsController
             'z2_flow'    => round((float) $r['z2_flow'], 2),
             'z1_tripped' => (bool) $r['z1_tripped'],
             'z2_tripped' => (bool) $r['z2_tripped'],
-            'valve_open' => (bool) $r['valve_open'],
             'rssi'       => $r['rssi'] !== null ? (int) round((float) $r['rssi']) : null,
         ], $stmt->fetchAll());
 
