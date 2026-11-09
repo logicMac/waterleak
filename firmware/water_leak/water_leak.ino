@@ -37,8 +37,8 @@ const uint32_t WIFI_RETRY_MS          = 15000;
 //                      GET  /commands?device_id=...
 //  API_KEY: must match the key your server checks (X-API-Key header).
 // =====================================================================
-const char *SERVER_BASE = "http://192.168.100.111/waterleak/backend/public/api/leak";
-const char *API_KEY     = "0490ca8b2cb9b1fdf0df635494d817eaea6e98f1eb6615ee";
+const char *SERVER_BASE = "https://waterleak.matatuhmlms.com/api/leak";
+const char *API_KEY     = "a94c738c2f6b944537088cf4326a1e29ac650d89be167285";
 
 const char *DEVICE_ID = "leakguard-01";
 
